@@ -5,56 +5,9 @@ from PIL import Image, ImageTk, ImageDraw
 import torch
 import numpy as np
 import cv2
-from train_resNet import ResNet  # 从训练代码中导入ResNet模型
-
-# 定义预测函数
-def predict(image, weld_pos, model_path):
-    """预测函数"""
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = ResNet().to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-
-    # 加载并预处理输入图片
-    # image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    original_image = image.copy()
-    image = image / 255.0
-    image = cv2.resize(image, (int(image.shape[1] * 0.5), int(image.shape[0] * 0.5)))
-    image_tensor = torch.Tensor(image).unsqueeze(0).unsqueeze(0).to(device)
-
-    # 预处理焊接点坐标
-    origin_weld_pos = weld_pos
-    weld_pos = np.array(weld_pos) * 0.5
-    weld_pos_tensor = torch.Tensor(weld_pos).unsqueeze(0).to(device)
-
-    # 进行预测
-    with torch.no_grad():
-        output = model(image_tensor, weld_pos_tensor)
-        output = output.cpu().numpy().flatten()
-
-    # 解析预测结果
-    circle_center = (round(output[0] * 2), round(output[1] * 2))
-    circle_radius = round(output[2] * 2)
-
-    # 在图片上绘制圆
-    output_image = original_image.copy()
-    mask = np.zeros_like(output_image)
-    cv2.circle(mask, circle_center, circle_radius, (255, 255, 255), -1)
-    output_image[mask == 255] = 0
-
-    # 绘制焊接位置
-    mask2 = original_image - output_image
-    draw_image = original_image.copy()
-    draw_image[mask2 == 255] = 100
-    cv2.circle(draw_image, tuple(origin_weld_pos), 5, (0, 0, 255), -1)  # 绘制焊接位置（红色圆点）
-
-    # 保存临时结果图片
-    temp_output_path = "./temp_output.png"
-    draw_image_path = "./draw_image.png"
-    cv2.imwrite(temp_output_path, output_image)
-    cv2.imwrite(draw_image_path, draw_image)
-
-    return temp_output_path, draw_image_path, circle_center, circle_radius
+from modules.train_resNet import ResNet  # 从训练代码中导入ResNet模型
+from beadProfilePredict import beadProfilePredict
+from weldPosPredict import weldPosPredict
 
 # GUI 应用程序
 class App:
@@ -63,7 +16,7 @@ class App:
         self.root.title("焊接点预测工具")
 
         # 初始化变量
-        self.image_path = None  
+        self.image_path = None  # 保存焊道图片（Bx）路径
         self.image = None   # 保存当前图片对象
         self.original_image_path = None  # 保存原始图片路径
         self.weld_pos = [0, 0]
@@ -92,9 +45,15 @@ class App:
         # 重置按钮
         tk.Button(input_frame, text="重置", command=self.reset_image).grid(row=1, column=0, columnspan=2, pady=10)
 
+        # 焊接位置预测按钮
+        tk.Button(input_frame, text="焊接位置预测", command=self.predict_weld_position).grid(row=2, column=0, columnspan=2, pady=10)
+
+        # 确认预测按钮
+        tk.Button(input_frame, text="确认预测", command=self.confirm_prediction).grid(row=3, column=0, columnspan=2, pady=10)
+
         # 创建文本显示区域
         self.info_label = tk.Label(input_frame, text="焊接位置: \n拟合圆心: \n拟合半径: ", justify=tk.LEFT)
-        self.info_label.grid(row=2, column=0, columnspan=2, pady=10)
+        self.info_label.grid(row=4, column=0, columnspan=2, pady=10)
 
     def load_image(self):
         """加载图片并显示"""
@@ -133,12 +92,12 @@ class App:
 
     def on_mouse_click(self, event):
         """鼠标点击事件"""
-
         if not self.image_path:
             return
 
-        self.image = cv2.imread('./temp_output.png', cv2.IMREAD_GRAYSCALE)  # 以灰度图加载
-        # print('self.image_path:', self.image_path)
+        # 更新图像为最新的预测结果
+        self.image = cv2.imread('./temp_output.png', cv2.IMREAD_GRAYSCALE)
+        self.image_path = './temp_output.png'  # 更新图像路径
         self.update_info()
 
     def run_prediction(self):
@@ -147,9 +106,8 @@ class App:
             return
 
         # 调用预测函数
-        model_path = "weight_0301_mini.pth"  # 模型路径
-        
-        output_image_path, draw_image_path, self.circle_center, self.circle_radius = predict(
+        model_path = "./weights/weight_0301_mini.pth"  # 模型路径
+        output_image_path, draw_image_path, self.circle_center, self.circle_radius = beadProfilePredict(
             self.image, self.weld_pos, model_path
         )
 
@@ -158,6 +116,34 @@ class App:
 
         # 更新拟合圆信息
         self.update_info()
+
+    def predict_weld_position(self):
+        """预测焊接位置并更新图片和信息"""
+        if not self.image_path:
+            return
+
+        # 调用焊接位置预测函数
+        model_path = "./weights/pose_weight.pth"  # 焊接位置模型路径
+        weld_pos, circle_center, circle_radius = weldPosPredict(self.image, model_path, "./temp_weld_pos.png")
+
+        # 更新焊接位置
+        self.weld_pos = weld_pos
+
+        # 更新图片显示
+        self.show_image("./temp_weld_pos.png")
+
+        self.update_info()
+
+    def confirm_prediction(self):
+        """确认预测并更新图像"""
+        if not self.image_path:
+            return
+
+        # 调用预测函数
+        self.run_prediction()
+
+        self.image = cv2.imread('./temp_output.png', cv2.IMREAD_GRAYSCALE)
+        # 更新拟合圆信息
 
     def update_info(self):
         """更新文本显示区域的内容"""
