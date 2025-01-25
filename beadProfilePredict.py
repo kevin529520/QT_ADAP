@@ -10,7 +10,7 @@ from weldPosPredict import weldPosPredict
 
 
 # 定义预测函数
-def beadProfilePredict(image, weld_pos, model_path):
+def beadProfilePredict(image, weld_pos, model_path, temp_output_path, draw_image_path):
     """预测函数"""
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = ResNet().to(device)
@@ -50,8 +50,8 @@ def beadProfilePredict(image, weld_pos, model_path):
     cv2.circle(draw_image, tuple(origin_weld_pos), 5, (0, 0, 255), -1)  # 绘制焊接位置（红色圆点）
 
     # 保存临时结果图片
-    temp_output_path = "./temp_output.png"
-    draw_image_path = "./draw_image.png"
+    # temp_output_path = temp_output_path
+    # draw_image_path = draw_image_path
     cv2.imwrite(temp_output_path, output_image)
     cv2.imwrite(draw_image_path, draw_image)
 

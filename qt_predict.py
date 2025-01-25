@@ -17,6 +17,9 @@ class App:
 
         # 初始化变量
         self.image_path = None  # 保存焊道图片（Bx）路径
+        self.temp_image_path = './images/temp_output.png'  # 保存临时图片路径
+        self.draw_image_path = './images/draw_image.png'  # 保存绘制图片路径
+        self.weldPos_image_path = './images/temp_weld_pos.png'  # 保存焊接位置图片路径
         self.image = None   # 保存当前图片对象
         self.original_image_path = None  # 保存原始图片路径
         self.weld_pos = [0, 0]
@@ -96,8 +99,8 @@ class App:
             return
 
         # 更新图像为最新的预测结果
-        self.image = cv2.imread('./temp_output.png', cv2.IMREAD_GRAYSCALE)
-        self.image_path = './temp_output.png'  # 更新图像路径
+        self.image = cv2.imread(self.temp_image_path, cv2.IMREAD_GRAYSCALE)
+        self.image_path = self.temp_image_path  # 更新图像路径
         self.update_info()
 
     def run_prediction(self):
@@ -108,7 +111,7 @@ class App:
         # 调用预测函数
         model_path = "./weights/weight_0301_mini.pth"  # 模型路径
         output_image_path, draw_image_path, self.circle_center, self.circle_radius = beadProfilePredict(
-            self.image, self.weld_pos, model_path
+            self.image, self.weld_pos, model_path, self.temp_image_path, self.draw_image_path
         )
 
         # 更新图片显示
@@ -124,13 +127,13 @@ class App:
 
         # 调用焊接位置预测函数
         model_path = "./weights/pose_weight.pth"  # 焊接位置模型路径
-        weld_pos, circle_center, circle_radius = weldPosPredict(self.image, model_path, "./temp_weld_pos.png")
+        weld_pos, circle_center, circle_radius = weldPosPredict(self.image, model_path, self.weldPos_image_path)
 
         # 更新焊接位置
         self.weld_pos = weld_pos
 
         # 更新图片显示
-        self.show_image("./temp_weld_pos.png")
+        self.show_image(self.weldPos_image_path)
 
         self.update_info()
 
@@ -142,7 +145,7 @@ class App:
         # 调用预测函数
         self.run_prediction()
 
-        self.image = cv2.imread('./temp_output.png', cv2.IMREAD_GRAYSCALE)
+        self.image = cv2.imread(self.temp_image_path, cv2.IMREAD_GRAYSCALE)
         # 更新拟合圆信息
 
     def update_info(self):

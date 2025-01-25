@@ -1,2 +1,6 @@
 *.pyc
 *.png
+*.txt
+*.npy
+*.ply
+*.pcd
