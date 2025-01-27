@@ -65,6 +65,8 @@ def fill_point_cloud_section(image_path, output_path):
     # 1. 找到所有白色像素点的坐标
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
+    image = unit_weldseam_pos(image)
+
     image[0, 4] = 255  # 添加
 
     white_pixels = np.where(image > 0)
@@ -129,12 +131,22 @@ def fill_point_cloud_section(image_path, output_path):
     cv2.imwrite(output_path, filled_image)
     # return filled_image
 
+def unit_weldseam_pos(image):
+    points = np.where(image == 255)
+    points = np.column_stack((points[1], points[0]))
+    points = points[points[:, 0].argsort()]
+    # print(points[-1])
+    dx = image.shape[1] - points[-1][0]
 
+    image = image[:, 0 : image.shape[1]  - (dx - 48)]
+    pading = np.zeros((image.shape[0], (dx - 48)))
+    image = np.hstack((pading, image))
+    return image
 
 
 
 if __name__ == "__main__":
-    image_path = "./images/bead3/fixed_projected_image_8.png"  # 输入图像路径
+    image_path = "./images/bead3/projected_image_8.png"  # 输入图像路径
     output_path = "./images/bead3/processed_image.png"  # 输出图像路径
     # fit_line_and_process_image(image_path, output_path)
     fill_point_cloud_section(image_path, output_path)

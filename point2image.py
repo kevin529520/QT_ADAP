@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import os
+import cv2
 
 class PointCloudProcessor:
     def __init__(self, workpiece, x_crosssection = 8, y1_crop=- 22.1, y2_crop=2.443, resolution=23 / 450, x_threshold=0.5, z_range=23):
@@ -14,15 +15,15 @@ class PointCloudProcessor:
         self.x_threshold = x_threshold
         self.z_range = z_range
         self.pcd = o3d.io.read_point_cloud('./pointcloud/' + workpiece)
-        self.transformed_pcd = None
+        self.transformed_pcd = o3d.io.read_point_cloud('./pointcloud/transformedPcd/' + workpiece.split('.')[0] + '/transformed_pcd.pcd')
         self.rotation_matrix = None
         self.translation_vector = None
 
     def project_to_yz_plane(self, x_crosssection):
         frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=50)
-        o3d.visualization.draw_geometries([self.transformed_pcd, frame], window_name="Transformed Point Cloud")
+        # o3d.visualization.draw_geometries([self.transformed_pcd, frame], window_name="Transformed Point Cloud")
         points = np.asarray(self.transformed_pcd.points)
-        print("Points dimensions:", points.shape)
+        # print("Points dimensions:", points.shape)
         
         mask = (np.abs(points[:, 0]) > x_crosssection) & (np.abs(points[:, 0]) < (x_crosssection + self.x_threshold))
         yz_points = points[mask][:, 1:]
@@ -60,8 +61,8 @@ class PointCloudProcessor:
 
     def process_point_cloud(self):
         try:
-            y1_crop = 400
-            y2_crop = 500 
+            y1_crop = 440
+            y2_crop = 540 
             bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(40, y1_crop, -30), max_bound=(70, y2_crop, 50))
 
             # Crop the point cloud using the bounding box
@@ -140,10 +141,10 @@ class PointCloudProcessor:
                 for key, value in transform_params.items():
                     f.write(f"{key}:\n{value}\n\n")
 
-            new_pcd = o3d.io.read_point_cloud("./pointcloud/transformedPcd/" + self.workpiece.split('.')[0] + "/transformed_pcd.pcd")
+            transformed_pcd = o3d.io.read_point_cloud("./pointcloud/transformedPcd/" + self.workpiece.split('.')[0] + "/transformed_pcd.pcd")
             bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(-15, self.y1_crop, -50), max_bound=(100, self.y2_crop, 50))
-            # cropped_pcd = new_pcd.crop(bbox)
-            cropped_pcd = new_pcd
+            # cropped_pcd = transformed_pcd.crop(bbox)
+            cropped_pcd = transformed_pcd
 
             workpiece_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=10)
             o3d.visualization.draw_geometries([cropped_pcd] + [workpiece_frame], window_name="Cropped Point Cloud")
@@ -151,6 +152,10 @@ class PointCloudProcessor:
             cl, ind = cropped_pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio=2.0)
             denoised_pcd = cropped_pcd.select_by_index(ind)
             o3d.visualization.draw_geometries([denoised_pcd], window_name="Denoised Point Cloud")
+
+            # self.transformed_pcd = denoised_pcd
+
+            
 
             if not os.path.exists("./images/" + self.workpiece.split('.')[0]):
                 os.makedirs("./images/" + self.workpiece.split('.')[0])
@@ -168,6 +173,101 @@ class PointCloudProcessor:
         except Exception as e:
             print(f"处理过程中发生错误: {e}")
 
+
+    def fill_point_cloud_section(self, image_path, output_path):
+        # 1. 找到所有白色像素点的坐标
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+
+        image = self.unit_weldseam_pos(image)
+
+        image[0, 4] = 255  # 添加
+
+        white_pixels = np.where(image > 0)
+        points = list(zip(white_pixels[1], white_pixels[0]))  # (x,y)坐标
+        if not points:
+            return image
+        points.sort()  # 按x坐标排序
+        
+        # 2. 创建新图像
+        height, width = image.shape
+        filled_image = np.zeros_like(image)
+        
+        # 3. 使用插值连接点
+        x_coords = np.array([p[0] for p in points])
+        y_coords = np.array([p[1] for p in points])
+        
+        # 对所有x坐标进行遍历
+        for x in range(width):
+            try:
+                # 找到对应的y值
+                if x < min(x_coords) or x > max(x_coords):
+                    continue
+                    
+                # 找到x左右两边最近的点
+                mask = (x_coords <= x)
+                if not any(mask) or all(mask):
+                    continue
+                    
+                left_idx = np.where(mask)[0][-1]
+                right_idx = np.where(~mask)[0][0]
+                
+                # 线性插值计算y值
+                if left_idx == right_idx:
+                    y = y_coords[left_idx]
+                else:
+                    x1, y1 = x_coords[left_idx], y_coords[left_idx]
+                    x2, y2 = x_coords[right_idx], y_coords[right_idx]
+                    # 检查除数是否为0
+                    if x2 - x1 == 0:
+                        y = y1
+                    else:
+                        y = y1 + (y2 - y1) * (x - x1) / (x2 - x1)
+                
+                # 确保y值有效
+                if np.isnan(y):
+                    continue
+                    
+                y = int(np.clip(round(y), 0, height-1))
+                filled_image[0:y, x] = 255  # 上方填充白色
+                
+            except Exception as e:
+                print(f"Error at x={x}: {str(e)}")
+                continue
+        # plt.figure(figsize=(10, 5))
+        # plt.subplot(1, 2, 1)
+        # plt.title("Original Image")
+        # plt.imshow(image, cmap='gray')
+        # plt.subplot(1, 2, 2)
+        # plt.title("Processed Image")
+        # plt.imshow(filled_image, cmap='gray')
+        # plt.show()
+        cv2.imwrite(output_path, filled_image)
+        # return filled_image
+
+    @staticmethod
+    def unit_weldseam_pos(image):
+        points = np.where(image == 255)
+        points = np.column_stack((points[1], points[0]))
+        points = points[points[:, 0].argsort()]
+        # print(points[-1])
+        dx = image.shape[1] - points[-1][0]
+
+        image = image[:, 0 : image.shape[1]  - (dx - 48)]
+        pading = np.zeros((image.shape[0], (dx - 48)))
+        image = np.hstack((pading, image))
+        return image
+
+
 if __name__ == "__main__":
-    processor = PointCloudProcessor(workpiece="bead3.ply", x_crosssection = 8, y1_crop=- 22.1, y2_crop=2.443, resolution=23 / 450, x_threshold=0.05, z_range=23)
+    workpiece = "bead3.ply"
+    x_crosssection = 8
+
+    image_path = os.path.join("./images", workpiece.split('.')[0], f"projected_image_{x_crosssection}.png")  # 输入图像路径
+    output_path = os.path.join("./images", workpiece.split('.')[0], f"processed_image.png")  # 输出图像路径
+
+
+    processor = PointCloudProcessor(workpiece, x_crosssection, y1_crop=- 22.1, y2_crop=2.443, resolution=23 / 450, x_threshold=0.5, z_range=23)
     processor.process_point_cloud()
+
+    processor.fill_point_cloud_section(image_path, output_path)
+
