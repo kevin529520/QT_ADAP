@@ -4,3 +4,4 @@
 *.npy
 *.ply
 *.pcd
+!pointcloud/transformedPcd/*ply

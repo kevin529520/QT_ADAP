@@ -15,7 +15,8 @@ class PointCloudProcessor:
         self.x_threshold = x_threshold
         self.z_range = z_range
         self.pcd = o3d.io.read_point_cloud('./pointcloud/' + workpiece)
-        self.transformed_pcd = o3d.io.read_point_cloud('./pointcloud/transformedPcd/' + workpiece.split('.')[0] + '/transformed_pcd.pcd')
+        # self.transformed_pcd = o3d.io.read_point_cloud('./pointcloud/transformedPcd/' + workpiece.split('.')[0] + '/transformed_pcd.pcd')
+        self.transformed_pcd = None
         self.rotation_matrix = None
         self.translation_vector = None
 
@@ -34,7 +35,7 @@ class PointCloudProcessor:
         
         y_min, z_min = np.min(yz_points, axis=0)
         y_max, z_max = np.max(yz_points, axis=0)
-        print(f"z范围: {z_min:.2f} to {z_max:.2f}, y范围: {y_min:.2f} to {y_max:.2f}")
+        # print(f"z范围: {z_min:.2f} to {z_max:.2f}, y范围: {y_min:.2f} to {y_max:.2f}")
         
         # height = int(self.z_range / self.resolution) + 1
         # width = int((self.y2_crop - self.y1_crop) / self.resolution) + 1
@@ -61,6 +62,7 @@ class PointCloudProcessor:
 
     def process_point_cloud(self):
         try:
+            
             y1_crop = 440
             y2_crop = 540 
             bbox = o3d.geometry.AxisAlignedBoundingBox(min_bound=(40, y1_crop, -30), max_bound=(70, y2_crop, 50))
@@ -113,7 +115,7 @@ class PointCloudProcessor:
             workpiece_frame.rotate(self.rotation_matrix, center=max_z_point)
             frames.append(workpiece_frame)
 
-            o3d.visualization.draw_geometries([inlier_cloud_1, outlier_cloud_1] + [frames[0]], window_name="Plane 1")
+            # o3d.visualization.draw_geometries([inlier_cloud_1, outlier_cloud_1] + [frames[0]], window_name="Plane 1")
 
             self.transform_point_cloud()
 
@@ -147,11 +149,11 @@ class PointCloudProcessor:
             cropped_pcd = transformed_pcd
 
             workpiece_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=10)
-            o3d.visualization.draw_geometries([cropped_pcd] + [workpiece_frame], window_name="Cropped Point Cloud")
+            # o3d.visualization.draw_geometries([cropped_pcd] + [workpiece_frame], window_name="Cropped Point Cloud")
 
             cl, ind = cropped_pcd.remove_statistical_outlier(nb_neighbors=50, std_ratio=2.0)
             denoised_pcd = cropped_pcd.select_by_index(ind)
-            o3d.visualization.draw_geometries([denoised_pcd], window_name="Denoised Point Cloud")
+            # o3d.visualization.draw_geometries([denoised_pcd], window_name="Denoised Point Cloud")
 
             # self.transformed_pcd = denoised_pcd
 
@@ -167,8 +169,8 @@ class PointCloudProcessor:
                 # img = img[:, 106 : 586]
                 img_pil = Image.fromarray(img)
                 img_pil.save('./images/' + self.workpiece.split('.')[0] + f"/projected_image_{x_crosssection}.png")
-                plt.imshow(img, cmap='gray')
-                plt.show()
+                # plt.imshow(img, cmap='gray')
+                # plt.show()
             
         except Exception as e:
             print(f"处理过程中发生错误: {e}")
