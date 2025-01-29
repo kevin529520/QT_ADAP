@@ -1,7 +1,9 @@
 *.pyc
 *.png
 *.txt
+!requirements.txt
 *.npy
-*.ply
+init.ply
+first.ply
 *.pcd
 !pointcloud/transformedPcd/*ply
