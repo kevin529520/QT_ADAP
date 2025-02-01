@@ -1,6 +1,7 @@
 import os
 import tkinter as tk
 from matplotlib import pyplot as plt
+from matplotlib.patches import Circle
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk, ImageDraw
 import torch
@@ -122,17 +123,21 @@ def beadProfilePredict(image, weld_pos, model_path, temp_output_path, draw_image
     points = [(x, y) for x, y in zip(x_positions, surface_heights)]  # 示例坐标
 
     # 定义点的颜色和半径
-    color = (0, 0, 255)  # BGR 颜色 (红色)
+    color = (0, 255, 0)  # BGR 颜色 (红色)
     radius = 2  # 圆点半径
     thickness = -1  # 填充圆点
 
     draw_image = cv2.cvtColor(draw_image, cv2.COLOR_GRAY2BGR)
+
     # 在图像上绘制一连串的点
     for point in points:
         cv2.circle(draw_image, point, radius, color, thickness)
 
-    cv2.circle(draw_image, tuple(origin_weld_pos), 5, (0, 0, 255), -1)  # 绘制焊接位置（红色圆点）
+    # cv2.circle(draw_image, tuple(origin_weld_pos), 5, (0, 0, 255), -1)  # 绘制焊接位置（红色圆点）
 
+    cv2.circle(draw_image, tuple(origin_weld_pos), 10, (0, 0, 255), 2)  # 绘制圆（红色边框）
+    cv2.line(draw_image, (origin_weld_pos[0] - 7, origin_weld_pos[1] - 7), (origin_weld_pos[0] + 7, origin_weld_pos[1] + 7), (0, 0, 255), 2)  # 绘制 'x' 的一条线
+    cv2.line(draw_image, (origin_weld_pos[0] - 7, origin_weld_pos[1] + 7), (origin_weld_pos[0] + 7, origin_weld_pos[1] - 7), (0, 0, 255), 2)  # 绘制 'x' 的另一条线
 
 
     # 保存临时结果图片

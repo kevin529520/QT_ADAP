@@ -15,7 +15,7 @@ import open3d as o3d
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("焊接点预测工具")
+        self.root.title("GUI_APAD")
         self.root.geometry("1500x650")  # Set initial window size (wider to accommodate buttons)
         
         # Create blank grayscale image (white background for binary images)
@@ -53,6 +53,7 @@ class App:
         self.pointcloud_label.pack()
         self.pointcloud_label.image = self.blank_photo  # Keep reference
         # self.pointcloud_label.pack(expand=True, fill=tk.BOTH)
+        self.pointcloud_label.pack_propagate(False)  # 防止标签自动调整大小
         
         # 点云下方文字
         self.pointcloud_caption = tk.Label(self.pointcloud_frame, text="weld seam pointcloud", font=("Arial", 18))
@@ -115,39 +116,56 @@ class App:
                 self.processor = PointCloudProcessor(self.workpiece, self.x_crosssection)
                 self.processor.process_point_cloud()
                 
-                # 创建可视化器
+                # 创建一个临时文件来保存渲染图像
+                temp_image_path = "temp_render.png"
+                
+                # 保存当前窗口状态
+                current_geometry = self.root.geometry()
+                
+                # 创建一个非常小的隐藏窗口
                 vis = o3d.visualization.Visualizer()
-                # vis.create_window(width=480, height=550, visible=True)
-                vis.create_window(width=480, height=550, visible=False)
+                vis.create_window(window_name='render', width=480, height=450, visible=False, left=4000, top=4000)
                 vis.add_geometry(self.pointcloud)
                 
-                # 设置相机视角
-                ctr = vis.get_view_control()
-                # ctr.set_zoom(0.8)
+                # 渲染设置
+                opt = vis.get_render_option()
+                opt.background_color = np.asarray([1, 1, 1])  # 白色背景
                 
-                # 渲染点云到图像
+                # 设置视角
+                ctr = vis.get_view_control()
                 vis.poll_events()
                 vis.update_renderer()
-                image = vis.capture_screen_float_buffer(do_render=False)
+                
+                # 捕获图像
+                vis.capture_screen_image(temp_image_path)
                 vis.destroy_window()
                 
-                # # 转换为PIL图像
-                image = (np.asarray(image) * 255).astype(np.uint8)
-                pil_image = Image.fromarray(image)
+                # 恢复窗口状态
+                # self.root.geometry("1500x650") 
+                self.root.focus_force()  # 强制焦点回到主窗口
+                
+                # 加载并显示图像
+                pil_image = Image.open(temp_image_path)
                 pil_image = pil_image.resize((480, 450))
                 
-                # # 显示在Tkinter中
+                # 显示在Tkinter中
                 pointcloud_photo = ImageTk.PhotoImage(pil_image)
-                self.pointcloud_label.config(image=pointcloud_photo, width=480, height=450)
+                self.pointcloud_label.config(image=pointcloud_photo)
                 self.pointcloud_label.image = pointcloud_photo
-                # self.pointcloud_label.image = self.blank_photo  # Keep reference
-                # self.pointcloud_label.config(width=480, height=450)
                 
-                # 更新状态
-                self.pointcloud_label.config(text="")
+                # 删除临时文件
+                try:
+                    os.remove(temp_image_path)
+                except:
+                    pass
+                    # 刷新界面大小
+                # self.root.update_idletasks()
+                # self.root.geometry("1500x650") 
+                # self.root.geometry("2000x1000") 
+                # self.root.geometry(current_geometry)
             except Exception as e:
                 messagebox.showerror("错误", f"无法加载点云文件: {str(e)}")
-                self.pointcloud_label.config(text="点云加载失败")
+                print(f"Error details: {str(e)}")
 
     def load_image(self):
         """加载图片并显示"""

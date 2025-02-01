@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import cv2
 import os
+import time
 from torchvision import transforms
 from modules.PoseNet import PNet  # 从训练代码中导入PNet模型
 
@@ -23,9 +24,12 @@ def weldPosPredict(image, model_path, output_image_path):
     image_tensor = torch.Tensor(image).unsqueeze(0).unsqueeze(0).to(device)  # 转换为张量并添加批次维度
 
     # 进行预测
+    start_time = time.time()
     with torch.no_grad():
         output = model(image_tensor, None, None)
         output = output.cpu().numpy().flatten()  # 将输出转换为numpy数组
+    end_time = time.time()
+    # print(f"Prediction time: {end_time - start_time:.4f} seconds")
 
     # 解析预测结果
     print('weld pos:', ((output[0]), (output[1])))
@@ -38,7 +42,11 @@ def weldPosPredict(image, model_path, output_image_path):
     output_image = original_image.copy()
     print('output_image:', output_image)
     output_image = cv2.cvtColor(output_image, cv2.COLOR_GRAY2BGR)  # 转换为彩色图以便绘制彩色标记
-    cv2.circle(output_image, weld_position, 5, (0, 0, 255), -1)  # 绘制焊接位置（红色圆点）
+    # cv2.circle(output_image, weld_position, 5, (0, 0, 255), -1)  # 绘制焊接位置（红色圆点）
+
+    cv2.circle(output_image, weld_position, 10, (0, 0, 255), 2)  # 绘制圆（红色边框）
+    cv2.line(output_image, (weld_position[0] - 7, weld_position[1] - 7), (weld_position[0] + 7, weld_position[1] + 7), (0, 0, 255), 2)  # 绘制 'x' 的一条线
+    cv2.line(output_image, (weld_position[0] - 7, weld_position[1] + 7), (weld_position[0] + 7, weld_position[1] - 7), (0, 0, 255), 2)  # 绘制 'x' 的另一条线
 
     # 保存结果图片
     cv2.imwrite(output_image_path, output_image)

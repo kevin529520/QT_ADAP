@@ -119,7 +119,7 @@ class PointCloudProcessor:
 
             self.transform_point_cloud()
 
-            o3d.visualization.draw_geometries([self.pcd, self.transformed_pcd, camera_frame], window_name="Transformed Point Cloud")
+            # o3d.visualization.draw_geometries([self.pcd, self.transformed_pcd, camera_frame], window_name="Transformed Point Cloud")
 
             if not os.path.exists("./pointcloud/transformedPcd"):
                 os.makedirs("./pointcloud/transformedPcd")
